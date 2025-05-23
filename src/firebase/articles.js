@@ -9,7 +9,9 @@ import {
   limit,
   addDoc,
   updateDoc,
-  increment
+  increment,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 
 /**
@@ -49,13 +51,68 @@ export async function getArticleById(id) {
 
 /**
  * Like an article
- * @param {string} id - Article ID
+ * @param {string} articleId - Article ID
+ * @param {string} userId - User ID
  * @returns {Promise<void>}
  */
-export async function likeArticle(id) {
-  const articleRef = doc(db, 'articles', id);
+export async function likeArticle(articleId, userId) {
+  if (!userId) {
+    throw new Error("User ID is required to like an article.");
+  }
+  const articleRef = doc(db, 'articles', articleId);
+  // Atomically add the user's ID to the 'likedBy' array and increment likes.
+  // This ensures that a user cannot like an article multiple times if their ID is already in likedBy.
+  // However, to be absolutely sure likes count matches likedBy.length, a transaction might be needed
+  // or we rely on likedBy array to be the source of truth for "who liked" and likes as a quick counter.
+  // For now, we'll update both. A more robust solution would be to check if user is already in likedBy before incrementing.
+  // Let's refine this: fetch the doc, check, then update. Or use a transaction.
+  // For simplicity and common practice with arrayUnion, we'll assume it handles non-duplication for the array.
+  // The likes count should ideally be updated based on the array's length or in a transaction.
+  // A simpler approach for now:
+  const docSnap = await getDoc(articleRef);
+  if (docSnap.exists()) {
+    const articleData = docSnap.data();
+    if (articleData.likedBy && articleData.likedBy.includes(userId)) {
+      // User has already liked this article, do nothing or throw an error
+      console.log("User has already liked this article.");
+      return;
+    }
+  }
+
   await updateDoc(articleRef, {
-    likes: increment(1)
+    likes: increment(1),
+    likedBy: arrayUnion(userId)
+  });
+}
+
+/**
+ * Unlike an article
+ * @param {string} articleId - Article ID
+ * @param {string} userId - User ID
+ * @returns {Promise<void>}
+ */
+export async function unlikeArticle(articleId, userId) {
+  if (!userId) {
+    throw new Error("User ID is required to unlike an article.");
+  }
+  const articleRef = doc(db, 'articles', articleId);
+  
+  // Atomically remove the user's ID from the 'likedBy' array and decrement likes.
+  // Similar to likeArticle, a transaction would be more robust for ensuring consistency.
+  // For now, we'll update both.
+  const docSnap = await getDoc(articleRef);
+  if (docSnap.exists()) {
+    const articleData = docSnap.data();
+    if (!articleData.likedBy || !articleData.likedBy.includes(userId)) {
+      // User hasn't liked this article or already unliked.
+      console.log("User has not liked this article or already unliked.");
+      return;
+    }
+  }
+
+  await updateDoc(articleRef, {
+    likes: increment(-1),
+    likedBy: arrayRemove(userId)
   });
 }
 
@@ -69,6 +126,7 @@ export async function addArticle(articleData) {
   const newArticle = await addDoc(articlesRef, {
     ...articleData,
     likes: 0,
+    likedBy: [], // Initialize likedBy array
     publication_date: new Date()
   });
   

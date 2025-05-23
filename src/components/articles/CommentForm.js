@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { addComment } from '../../firebase/comments';
+// import { addComment } from '../../firebase/comments'; // Will be handled by the hook
 import Button from '../common/Button';
 import ErrorMessage from '../common/ErrorMessage';
 
@@ -36,25 +36,9 @@ function CommentForm({ articleId, onCommentAdded }) {
       setSubmitting(true);
       setError(null);
       
-      const commentData = {
-        article_id: articleId,
-        user_id: currentUser.uid,
-        user_name: isAnonymous ? null : currentUser.displayName || currentUser.email,
-        text: commentText.trim(),
-        is_anonymous: isAnonymous
-      };
-      
-      const commentId = await addComment(commentData);
-      
-      // Add the ID and created_at to the comment data for the UI
-      const newComment = {
-        id: commentId,
-        ...commentData,
-        created_at: { seconds: Math.floor(Date.now() / 1000) } // Approximate timestamp for UI
-      };
-      
-      // Call the callback with the new comment
-      onCommentAdded(newComment);
+      // The onCommentAdded prop is expected to be the postComment function from useComments hook
+      // which takes (text, isAnonymous)
+      await onCommentAdded(commentText, isAnonymous);
       
       // Reset form
       setCommentText('');

@@ -10,14 +10,16 @@ import { useAuth } from '../../context/AuthContext';
  * @param {Object} props - Component props
  * @param {Object} props.article - Article object
  * @param {boolean} props.isBookmarked - Whether the article is bookmarked by the current user
- * @param {Function} props.onLike - Function to call when the like button is clicked
+ * @param {Function} props.onLikeUnlike - Function to call when the like/unlike button is clicked
  * @param {Function} props.onBookmark - Function to call when the bookmark button is clicked
  * @returns {JSX.Element} ArticleDetail component
  */
-function ArticleDetail({ article, isBookmarked, onLike, onBookmark }) {
+function ArticleDetail({ article, isBookmarked, onLikeUnlike, onBookmark }) {
   const { currentUser } = useAuth();
   
   if (!article) return null;
+
+  const hasLiked = currentUser && article.likedBy && article.likedBy.includes(currentUser.uid);
   
   // Format publication date
   const formattedDate = formatArticleDate(article.publication_date);
@@ -35,18 +37,20 @@ function ArticleDetail({ article, isBookmarked, onLike, onBookmark }) {
             {formattedDate}
           </p>
           <div className="flex items-center space-x-4">
-            <button 
-              onClick={onLike}
+            {currentUser && (
+            <button
+              onClick={onLikeUnlike}
               className="flex items-center text-gray-500 hover:text-red-500"
-              aria-label="Like article"
+              aria-label={hasLiked ? "Unlike article" : "Like article"}
             >
-              {article.userLiked ? (
+              {hasLiked ? (
                 <HeartIconSolid className="h-5 w-5 mr-1 text-red-500" />
               ) : (
                 <HeartIcon className="h-5 w-5 mr-1" />
               )}
               <span>{article.likes || 0}</span>
             </button>
+            )}
             
             {currentUser && (
               <button 
@@ -80,18 +84,22 @@ function ArticleDetail({ article, isBookmarked, onLike, onBookmark }) {
           </div>
           
           <div className="flex items-center space-x-4">
-            <button 
-              onClick={onLike}
+            {/* Like button in footer can be removed if it's redundant with the header one, or kept for convenience */}
+            {/* For now, let's assume it's useful and apply the same logic */}
+            {currentUser && (
+            <button
+              onClick={onLikeUnlike}
               className="flex items-center text-gray-500 hover:text-red-500"
-              aria-label="Like article"
+              aria-label={hasLiked ? "Unlike article" : "Like article"}
             >
-              {article.userLiked ? (
+              {hasLiked ? (
                 <HeartIconSolid className="h-5 w-5 mr-1 text-red-500" />
               ) : (
                 <HeartIcon className="h-5 w-5 mr-1" />
               )}
               <span>{article.likes || 0} likes</span>
             </button>
+            )}
           </div>
         </div>
       </footer>

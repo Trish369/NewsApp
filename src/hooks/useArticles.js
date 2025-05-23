@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { getArticles, getArticleById } from '../firebase/articles';
+import { useState, useEffect, useCallback } from 'react';
+import { getArticles, getArticleById, likeArticle as fbLikeArticle, unlikeArticle as fbUnlikeArticle } from '../firebase/articles';
+import { useAuth } from '../context/AuthContext';
 import { logError, handleApiError } from '../utils/errorHandler';
 
 /**
@@ -42,9 +43,11 @@ export function useArticle(id) {
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  const fetchArticle = async () => {
+  const { currentUser } = useAuth();
+
+  const fetchArticle = useCallback(async () => {
     if (!id) {
+      setArticle(null);
       setLoading(false);
       return;
     }
@@ -57,14 +60,67 @@ export function useArticle(id) {
     } catch (err) {
       logError(err, 'useArticle.fetchArticle', { id });
       setError(handleApiError(err, 'fetching article'));
+      setArticle(null); // Clear article on error
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
   
   useEffect(() => {
     fetchArticle();
-  }, [id]);
+  }, [fetchArticle]);
+
+  const handleLikeArticle = async () => {
+    if (!currentUser) {
+      setError('You must be logged in to like an article.');
+      return;
+    }
+    if (!article) return;
+
+    try {
+      await fbLikeArticle(article.id, currentUser.uid);
+      // Optimistic update or refetch
+      setArticle(prev => {
+        if (!prev) return null;
+        const alreadyLiked = prev.likedBy && prev.likedBy.includes(currentUser.uid);
+        return {
+          ...prev,
+          likes: alreadyLiked ? prev.likes : (prev.likes || 0) + 1,
+          likedBy: alreadyLiked ? prev.likedBy : [...(prev.likedBy || []), currentUser.uid]
+        };
+      });
+      setError(null); // Clear previous errors
+    } catch (err) {
+      logError(err, 'useArticle.handleLikeArticle', { articleId: article.id, userId: currentUser.uid });
+      setError(handleApiError(err, 'liking article'));
+    }
+  };
+
+  const handleUnlikeArticle = async () => {
+    if (!currentUser) {
+      setError('You must be logged in to unlike an article.');
+      return;
+    }
+    if (!article) return;
+
+    try {
+      await fbUnlikeArticle(article.id, currentUser.uid);
+      // Optimistic update or refetch
+      setArticle(prev => {
+        if (!prev) return null;
+        const wasLiked = prev.likedBy && prev.likedBy.includes(currentUser.uid);
+        return {
+          ...prev,
+          likes: wasLiked && prev.likes > 0 ? prev.likes - 1 : prev.likes,
+          likedBy: wasLiked ? prev.likedBy.filter(uid => uid !== currentUser.uid) : prev.likedBy
+        };
+      });
+      setError(null); // Clear previous errors
+    } catch (err) {
+      logError(err, 'useArticle.handleUnlikeArticle', { articleId: article.id, userId: currentUser.uid });
+      setError(handleApiError(err, 'unliking article'));
+    }
+  };
   
-  return { article, loading, error, refetch: fetchArticle };
+  return { article, loading, error, refetch: fetchArticle, handleLikeArticle, handleUnlikeArticle };
 }

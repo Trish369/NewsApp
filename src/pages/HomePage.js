@@ -32,11 +32,9 @@ function HomePage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100"> {/* Full screen height and a background */}
+    <div className="flex flex-col bg-gray-100 flex-grow h-full"> {/* Ensure HomePage fills vertical space */}
       {/* Header/Title Section - Kept minimal for card focus */}
-      <div className="py-4 px-4 sm:px-6 lg:px-8 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Finance News Feed</h1>
-      </div>
+      {/* Title removed */}
 
       {loading ? (
         <div className="flex-grow flex justify-center items-center">
@@ -59,11 +57,11 @@ function HomePage() {
           </Button>
         </div>
       ) : (
-        <div className="flex-grow flex items-center justify-center overflow-hidden p-2 sm:p-4 md:p-6 lg:p-8">
+        <div className="flex-grow flex justify-center overflow-hidden px-4 h-full">
           <Swiper
             modules={[Navigation, Pagination, A11y, Keyboard, Mousewheel]}
-            spaceBetween={16} // Space between slides
-            slidesPerView={'auto'} // Show one main card, allow for partials
+            spaceBetween={0} // Space between slides
+            slidesPerView={1} // Show one main card, allow for partials
             centeredSlides={true}
             loop={articles.length > 2} // Loop if more than two articles to avoid issues with centered 'auto' slides
             navigation // Enable navigation arrows
@@ -71,7 +69,7 @@ function HomePage() {
             keyboard={{ enabled: true }} // Enable keyboard navigation
             mousewheel={{ forceToAxis: true }} // Enable mousewheel navigation
             grabCursor={true} // Show grab cursor
-            className="w-full h-[85vh] sm:h-[80vh] md:h-[75vh]" // Use full width for the swiper container
+            className="w-full h-full" // Use full width and height of parent for the swiper container
             style={{
               '--swiper-navigation-color': '#007aff',
               '--swiper-pagination-color': '#007aff',
@@ -81,8 +79,8 @@ function HomePage() {
               // Adjust slide width for partial preview effect.
               // This width combined with spaceBetween and centeredSlides will create the effect.
               // For example, if you want the main card to be 80% of the container:
-              <SwiperSlide key={article.id} className="flex justify-center items-center !w-[80%] sm:!w-[70%] md:!w-[60%] lg:!w-[50%]">
-                <div className="w-full h-full p-1">
+              <SwiperSlide key={article.id} className="flex justify-center items-center !w-full">
+                <div className="w-full h-full">
                   <ArticleCard article={article} />
                 </div>
               </SwiperSlide>

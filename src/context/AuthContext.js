@@ -1,7 +1,12 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { auth } from '../firebase/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getUserData, isUserAdmin } from '../firebase/auth';
+import {
+  getUserData,
+  isUserAdmin,
+  addBookmark as fbAddBookmark,
+  removeBookmark as fbRemoveBookmark
+} from '../firebase/auth';
 
 // Create the context
 const AuthContext = createContext();
@@ -25,41 +30,74 @@ export function AuthProvider({ children }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Subscribe to auth state changes
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      
-      if (user) {
-        try {
-          // Get additional user data from Firestore
-          const userDataFromFirestore = await getUserData(user.uid);
-          setUserData(userDataFromFirestore);
-          
-          // Check if user is admin
-          const adminStatus = await isUserAdmin(user.uid);
-          setIsAdmin(adminStatus);
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      } else {
-        setUserData(null);
+  const fetchUserData = useCallback(async (user) => {
+    if (user) {
+      try {
+        const data = await getUserData(user.uid);
+        setUserData(data);
+        const adminStatus = await isUserAdmin(user.uid);
+        setIsAdmin(adminStatus);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        setUserData(null); // Clear data on error
         setIsAdmin(false);
       }
-      
+    } else {
+      setUserData(null);
+      setIsAdmin(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      await fetchUserData(user);
       setLoading(false);
     });
-
-    // Cleanup subscription
     return unsubscribe;
-  }, []);
+  }, [fetchUserData]);
+
+  const addBookmarkToContext = useCallback(async (articleId) => {
+    if (!currentUser || !userData) {
+      throw new Error("User not logged in or user data not available.");
+    }
+    try {
+      await fbAddBookmark(currentUser.uid, articleId);
+      setUserData(prevData => ({
+        ...prevData,
+        bookmarks: [...(prevData?.bookmarks || []), articleId]
+      }));
+    } catch (error) {
+      console.error("Error adding bookmark in context:", error);
+      throw error; // Re-throw for component to handle
+    }
+  }, [currentUser, userData]);
+
+  const removeBookmarkFromContext = useCallback(async (articleId) => {
+    if (!currentUser || !userData) {
+      throw new Error("User not logged in or user data not available.");
+    }
+    try {
+      await fbRemoveBookmark(currentUser.uid, articleId);
+      setUserData(prevData => ({
+        ...prevData,
+        bookmarks: (prevData?.bookmarks || []).filter(id => id !== articleId)
+      }));
+    } catch (error) {
+      console.error("Error removing bookmark in context:", error);
+      throw error; // Re-throw for component to handle
+    }
+  }, [currentUser, userData]);
 
   // Context value
   const value = {
     currentUser,
     userData,
     isAdmin,
-    loading
+    loading,
+    addBookmark: addBookmarkToContext,
+    removeBookmark: removeBookmarkFromContext,
+    refreshUserData: () => fetchUserData(currentUser) // Expose a way to refresh user data if needed
   };
 
   return (

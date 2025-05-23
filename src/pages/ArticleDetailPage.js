@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-import { likeArticle } from '../firebase/articles';
 import { useAuth } from '../context/AuthContext';
 import { useArticle } from '../hooks/useArticles';
 import { useComments } from '../hooks/useComments';
@@ -19,10 +18,17 @@ import CommentForm from '../components/articles/CommentForm';
 function ArticleDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentUser, userData } = useAuth();
+  const { currentUser, userData, addBookmark, removeBookmark } = useAuth();
   
   // Use custom hooks for article and comments
-  const { article, loading, error, refetch } = useArticle(id);
+  const {
+    article,
+    loading,
+    error,
+    // refetch, // refetch is handled by like/unlike handlers now for optimistic updates
+    handleLikeArticle,
+    handleUnlikeArticle
+  } = useArticle(id);
   const {
     comments,
     loading: commentsLoading,
@@ -32,33 +38,45 @@ function ArticleDetailPage() {
   
   // Check if article is bookmarked by current user
   const isBookmarked = userData?.bookmarks?.includes(id);
-  
-  // Handle like button click
-  const handleLike = async () => {
+
+  const handleToggleLike = async () => {
     if (!currentUser) {
-      // If not logged in, redirect to login page
       navigate('/login', { state: { from: `/article/${id}` } });
       return;
     }
-    
+    if (!article) return;
+
+    const hasLiked = article.likedBy && article.likedBy.includes(currentUser.uid);
+
     try {
-      await likeArticle(id);
-      // Refetch the article to get updated like count
-      refetch();
+      if (hasLiked) {
+        await handleUnlikeArticle();
+      } else {
+        await handleLikeArticle();
+      }
     } catch (err) {
-      console.error('Error liking article:', err);
+      // Error is already logged and set in the useArticle hook
+      console.error('Error toggling like:', err);
     }
   };
   
-  // Handle bookmark toggle
-  const handleBookmark = () => {
+  const handleToggleBookmark = async () => {
     if (!currentUser) {
       navigate('/login', { state: { from: `/article/${id}` } });
       return;
     }
-    
-    // This would be implemented in a real app
-    console.log('Toggle bookmark for article:', id);
+    if (!article) return;
+
+    try {
+      if (isBookmarked) {
+        await removeBookmark(article.id);
+      } else {
+        await addBookmark(article.id);
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+      // Optionally, show an error message to the user
+    }
   };
   
   if (loading) {
@@ -111,8 +129,8 @@ function ArticleDetailPage() {
       <ArticleDetail
         article={article}
         isBookmarked={isBookmarked}
-        onLike={handleLike}
-        onBookmark={handleBookmark}
+        onLikeUnlike={handleToggleLike}
+        onBookmark={handleToggleBookmark}
       />
       
       {/* Comments section */}
